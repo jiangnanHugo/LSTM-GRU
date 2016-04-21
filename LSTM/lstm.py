@@ -1,5 +1,4 @@
 import numpy as np
-import scipy as sp
 import theano
 import theano.tensor as T
 
@@ -30,8 +29,7 @@ class LSTM:
                 low=-np.sqrt(1./n_input),
                 high=np.sqrt(1./n_input),
                 size=(n_hidden,n_input+n_hidden)),
-            dtype=theano.config.floatX
-        )
+            dtype=theano.config.floatX)
 
         initial_bi=np.zeros((n_hidden),dtype=theano.config.floatX)
 
@@ -67,8 +65,6 @@ class LSTM:
         self._build()
 
     def _build(self):
-
-
         x=T.fmatrix('x')
         y=T.fmatrix('y')
 
@@ -79,19 +75,19 @@ class LSTM:
             :param c_prev: Cell state from previous time step.
             :return: [new hidden variable, updated cell state]
         '''
-        def forward_step(x_t,h_tm1,c_tm1):
+        def _recurrence(x_t,h_tm1,c_tm1):
             concated=T.concatenate([x_t,h_tm1])
             # Forget gate
-            f_t=self.f(T.dot(concated,self.Wf)+self.bf)
+            f_t=self.f(T.dot(self.Wf,concated)+self.bf)
             # Input gate
-            i_t=self.f(T.dot(concated,self.Wi)+self.bi)
+            i_t=self.f(T.dot(self.Wi,concated)+self.bi)
 
             # Cell Update
-            c_tilde_t=T.tanh(T.dot(concated,self.Wc)+self.bc)
+            c_tilde_t=T.tanh(T.dot(self.Wc,concated)+self.bc)
             c_t=f_t * c_tm1 + i_t * c_tilde_t
 
             # output gate
-            o_t=self.f(T.dot(concated,self.Wo)+self.bo)
+            o_t=self.f(T.dot(self.Wo,concated)+self.bo)
 
             # Hidden state
             h_t= o_t * T.tanh(c_t)
@@ -99,7 +95,7 @@ class LSTM:
             return [h_t,c_t]
 
         [h_t,c_t],_=theano.scan(
-            fn=forward_step,
+            fn=_recurrence,
             sequences=x,
             truncate_gradient=-1,
             outputs_info=[dict(initial=T.zeros(self.n_hidden)),
@@ -108,7 +104,7 @@ class LSTM:
         o_error=((y-h_t)**2).sum()
 
         gparams=T.grad(o_error,self.params)
-        learning_rate=T.scalar('learning')
+        learning_rate=T.scalar('learning_rate')
         #decay=T.scalar('decay')
         updates=[(param,param-learning_rate*gparam)
                  for param, gparam in zip(self.params,gparams)]
